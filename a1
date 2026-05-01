@@ -1,159 +1,173 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
-local Window = Rayfield:CreateWindow({
-	Name = "제목없는 RPG - 카메라 핵 허브",
-	LoadingTitle = "로딩 중...",
-	LoadingSubtitle = "by Gemini",
-	ConfigurationSaving = {
-		Enabled = false,
-		FolderName = nil,
-	}
-)
-
-local Tab = Window:CreateTab("이동 및 카메라", "MousePointer")
-
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
+local character = player.Character or player.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
 
-local ENABLED = false
-local SPEED = 60
-local rotation = Vector2.new(0, 0)
-local lastPos = nil
-local camCF = nil
-local isPaused = false
+local enabled = false
+local targetPlayer = nil
 
--- 더미 파트 생성
-local dummyPart = Instance.new("Part")
-dummyPart.Size = Vector3.new(2, 5, 2)
-dummyPart.Transparency = 1
-dummyPart.CanCollide = false
-dummyPart.Anchored = true
-dummyPart.Parent = workspace
+-- ===== GUI 생성 =====
+local gui = Instance.new("ScreenGui")
+gui.Name = "FlingKillHub"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
 
-local function updateDummy()
-	if camCF then
-		dummyPart.Position = camCF.Position
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 300, 0, 220)
+frame.Position = UDim2.new(0.5, -150, 0.4, -110)
+frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+frame.BorderSizePixel = 0
+frame.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = frame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundTransparency = 1
+title.Text = "Fling Things & People 루프킬 허브"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 14
+title.Font = Enum.Font.GothamBold
+title.Parent = frame
+
+-- 닉네임 입력창
+local textBox = Instance.new("TextBox")
+textBox.Size = UDim2.new(0.8, 0, 0, 40)
+textBox.Position = UDim2.new(0.1, 0, 0, 50)
+textBox.PlaceholderText = "타겟 플레이어 닉네임 입력"
+textBox.Text = ""
+textBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+textBox.TextSize = 14
+textBox.Font = Enum.Font.Gotham
+textBox.Parent = frame
+
+local tbCorner = Instance.new("UICorner")
+tbCorner.CornerRadius = UDim.new(0, 6)
+tbCorner.Parent = textBox
+
+-- 타겟 설정 버튼
+local setTargetBtn = Instance.new("TextButton")
+setTargetBtn.Size = UDim2.new(0.38, 0, 0, 35)
+setTargetBtn.Position = UDim2.new(0.1, 0, 0, 100)
+setTargetBtn.Text = "타겟 설정"
+setTargetBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+setTargetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+setTargetBtn.Font = Enum.Font.GothamBold
+setTargetBtn.Parent = frame
+
+-- 타겟 지우기 버튼
+local clearTargetBtn = Instance.new("TextButton")
+clearTargetBtn.Size = UDim2.new(0.38, 0, 0, 35)
+clearTargetBtn.Position = UDim2.new(0.52, 0, 0, 100)
+clearTargetBtn.Text = "타겟 지우기"
+clearTargetBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+clearTargetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+clearTargetBtn.Font = Enum.Font.GothamBold
+clearTargetBtn.Parent = frame
+
+-- 루프킬 토글 버튼
+local loopKillBtn = Instance.new("TextButton")
+loopKillBtn.Size = UDim2.new(0.8, 0, 0, 45)
+loopKillBtn.Position = UDim2.new(0.1, 0, 0, 155)
+loopKillBtn.Text = "루프킬: OFF"
+loopKillBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+loopKillBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+loopKillBtn.Font = Enum.Font.GothamBold
+loopKillBtn.Parent = frame
+
+local function getPlayer(name)
+	for _, p in ipairs(Players:GetPlayers()) do
+		if string.sub(string.lower(p.Name), 1, string.len(name)) == string.lower(name) then
+			return p
+		end
 	end
+	return nil
 end
 
--- 토글 버튼
-local Toggle = Tab:CreateToggle({
-	Name = "카메라 무브 ON/OFF",
-	CurrentValue = false,
-	Flag = "CameraToggle",
-	Callback = function(Value)
-		ENABLED = Value
-		
-		if ENABLED then
-			camera.CameraType = Enum.CameraType.Scriptable
-			if player.Character then
-				local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-				if hrp then
-					hrp.Anchored = true
-				end
-			end
-			camCF = camera.CFrame
-			rotation = Vector2.new(0, 0)
-			Rayfield:Notify({Title = "알림", Content = "카메라 무브 활성화", Duration = 3})
-		else
-			camera.CameraType = Enum.CameraType.Custom
-			isPaused = false
-			if player.Character then
-				local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-				if hrp then
-					hrp.Anchored = false
-				end
-			end
-			Rayfield:Notify({Title = "알림", Content = "카메라 무브 비활성화", Duration = 3})
-		end
-	end
-})
-
--- 카메라 정지 토글
-local PauseToggle = Tab:CreateToggle({
-	Name = "카메라 정지 (정지 후 회전만 가능)",
-	CurrentValue = false,
-	Flag = "PauseToggle",
-	Callback = function(Value)
-		isPaused = Value
-	end
-})
-
--- 속도 슬라이더
-local Slider = Tab:CreateSlider({
-	Name = "카메라 이동 속도",
-	Range = {10, 200},
-	Increment = 5,
-	Suffix = "Speed",
-	CurrentValue = 60,
-	Flag = "SpeedSlider",
-	Callback = function(Value)
-		SPEED = Value
-	end
-})
-
--- 순간 이동 버튼
-local Button = Tab:CreateButton({
-	Name = "바라보는 방향으로 TP",
-	Callback = function()
-		if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-			local targetCFrame = camera.CFrame + (camera.CFrame.LookVector * 15)
-			player.Character.HumanoidRootPart.CFrame = targetCFrame
-			Rayfield:Notify({Title = "알림", Content = "순간 이동 완료!", Duration = 2})
-		end
-	end
-})
-
--- ===== 터치 회전 =====
-UserInputService.InputChanged:Connect(function(input)
-	if not ENABLED then return end
-
-	if input.UserInputType == Enum.UserInputType.Touch then
-		if lastPos then
-			local delta = input.Position - lastPos
-
-			rotation = rotation + Vector2.new(
-				-delta.X * 0.004,
-				-delta.Y * 0.004
-			)
-		end
-		lastPos = input.Position
-	end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.Touch then
-		lastPos = nil
-	end
-end)
-
--- ===== 카메라 업데이트 =====
-RunService.RenderStepped:Connect(function(dt)
-	if not ENABLED then return end
-	if not camCF then return end
-
-	if player.Character then
-		local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-		if hrp then
-			hrp.Anchored = true
-			updateDummy()
-		end
-	end
-
-	local rot = CFrame.Angles(0, rotation.X, 0) * CFrame.Angles(rotation.Y, 0, 0)
-	local lookCF = CFrame.new(camCF.Position) * rot
-
-	if not isPaused then
-		camCF = lookCF + (lookCF.LookVector * SPEED * dt)
+-- 타겟 설정
+setTargetBtn.MouseButton1Click:Connect(function()
+	local foundPlayer = getPlayer(textBox.Text)
+	if foundPlayer then
+		targetPlayer = foundPlayer
+		textBox.Text = targetPlayer.Name
+		title.Text = "타겟 설정됨: " .. targetPlayer.Name
+		title.TextColor3 = Color3.fromRGB(0, 255, 100)
 	else
-		camCF = lookCF
+		title.Text = "플레이어를 찾을 수 없습니다."
+		title.TextColor3 = Color3.fromRGB(255, 50, 50)
 	end
-
-	camera.CFrame = camCF
 end)
 
-Rayfield:LoadConfiguration()
+-- 타겟 지우기
+clearTargetBtn.MouseButton1Click:Connect(function()
+	targetPlayer = nil
+	textBox.Text = ""
+	title.Text = "Fling Things & People 루프킬 허브"
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+end)
+
+-- 블롭맨 소환 및 탑승 기능
+local function spawnAndRideBlobman()
+	-- 게임 내 블롭맨 소환 도구(Tool)나 상호작용 객체 소환을 시뮬레이션
+	local foundBlobman = Workspace:FindFirstChild("Blobman") or Workspace:FindFirstChild("Blob")
+	
+	if not foundBlobman then
+		-- 블롭맨이 없을 경우 생성
+		local dummy = Instance.new("Part")
+		dummy.Name = "Blobman"
+		dummy.Size = Vector3.new(3, 5, 3)
+		dummy.Position = rootPart.Position + Vector3.new(0, 2, 0)
+		dummy.Parent = Workspace
+		foundBlobman = dummy
+	end
+	
+	-- 블롭맨에 탑승
+	if character and character:FindFirstChild("Humanoid") and foundBlobman then
+		local seat = foundBlobman:FindFirstChildOfClass("Seat")
+		if seat then
+			seat:Sit(character.Humanoid)
+		else
+			-- 시트가 없으면 캐릭터 위치를 블롭맨 위에 고정
+			character:SetPrimaryPartCFrame(foundBlobman.CFrame + Vector3.new(0, 3, 0))
+		end
+	end
+	
+	return foundBlobman
+end
+
+-- 루프킬 토글
+loopKillBtn.MouseButton1Click:Connect(function()
+	enabled = not enabled
+	if enabled then
+		loopKillBtn.Text = "루프킬: ON"
+		loopKillBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 50)
+	else
+		loopKillBtn.Text = "루프킬: OFF"
+		loopKillBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+	end
+end)
+
+-- 루프킬 실행 로직
+RunService.Heartbeat:Connect(function()
+	if enabled and targetPlayer and targetPlayer.Character then
+		local targetHrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+		
+		if targetHrp then
+			-- 블롭맨을 소환하고 타고 이동하는 함수 호출
+			local blob = spawnAndRideBlobman()
+			
+			-- 대상과 캐릭터(블롭맨 탑승 상태)의 위치를 강제로 겹침 (루프 킬)
+			if blob then
+				blob.CFrame = targetHrp.CFrame
+			else
+				rootPart.CFrame = targetHrp.CFrame
+			end
+		end
+	end
+end)
