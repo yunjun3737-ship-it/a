@@ -1,0 +1,159 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+	Name = "제목없는 RPG - 카메라 핵 허브",
+	LoadingTitle = "로딩 중...",
+	LoadingSubtitle = "by Gemini",
+	ConfigurationSaving = {
+		Enabled = false,
+		FolderName = nil,
+	}
+)
+
+local Tab = Window:CreateTab("이동 및 카메라", "MousePointer")
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local ENABLED = false
+local SPEED = 60
+local rotation = Vector2.new(0, 0)
+local lastPos = nil
+local camCF = nil
+local isPaused = false
+
+-- 더미 파트 생성
+local dummyPart = Instance.new("Part")
+dummyPart.Size = Vector3.new(2, 5, 2)
+dummyPart.Transparency = 1
+dummyPart.CanCollide = false
+dummyPart.Anchored = true
+dummyPart.Parent = workspace
+
+local function updateDummy()
+	if camCF then
+		dummyPart.Position = camCF.Position
+	end
+end
+
+-- 토글 버튼
+local Toggle = Tab:CreateToggle({
+	Name = "카메라 무브 ON/OFF",
+	CurrentValue = false,
+	Flag = "CameraToggle",
+	Callback = function(Value)
+		ENABLED = Value
+		
+		if ENABLED then
+			camera.CameraType = Enum.CameraType.Scriptable
+			if player.Character then
+				local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					hrp.Anchored = true
+				end
+			end
+			camCF = camera.CFrame
+			rotation = Vector2.new(0, 0)
+			Rayfield:Notify({Title = "알림", Content = "카메라 무브 활성화", Duration = 3})
+		else
+			camera.CameraType = Enum.CameraType.Custom
+			isPaused = false
+			if player.Character then
+				local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					hrp.Anchored = false
+				end
+			end
+			Rayfield:Notify({Title = "알림", Content = "카메라 무브 비활성화", Duration = 3})
+		end
+	end
+})
+
+-- 카메라 정지 토글
+local PauseToggle = Tab:CreateToggle({
+	Name = "카메라 정지 (정지 후 회전만 가능)",
+	CurrentValue = false,
+	Flag = "PauseToggle",
+	Callback = function(Value)
+		isPaused = Value
+	end
+})
+
+-- 속도 슬라이더
+local Slider = Tab:CreateSlider({
+	Name = "카메라 이동 속도",
+	Range = {10, 200},
+	Increment = 5,
+	Suffix = "Speed",
+	CurrentValue = 60,
+	Flag = "SpeedSlider",
+	Callback = function(Value)
+		SPEED = Value
+	end
+})
+
+-- 순간 이동 버튼
+local Button = Tab:CreateButton({
+	Name = "바라보는 방향으로 TP",
+	Callback = function()
+		if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			local targetCFrame = camera.CFrame + (camera.CFrame.LookVector * 15)
+			player.Character.HumanoidRootPart.CFrame = targetCFrame
+			Rayfield:Notify({Title = "알림", Content = "순간 이동 완료!", Duration = 2})
+		end
+	end
+})
+
+-- ===== 터치 회전 =====
+UserInputService.InputChanged:Connect(function(input)
+	if not ENABLED then return end
+
+	if input.UserInputType == Enum.UserInputType.Touch then
+		if lastPos then
+			local delta = input.Position - lastPos
+
+			rotation = rotation + Vector2.new(
+				-delta.X * 0.004,
+				-delta.Y * 0.004
+			)
+		end
+		lastPos = input.Position
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Touch then
+		lastPos = nil
+	end
+end)
+
+-- ===== 카메라 업데이트 =====
+RunService.RenderStepped:Connect(function(dt)
+	if not ENABLED then return end
+	if not camCF then return end
+
+	if player.Character then
+		local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			hrp.Anchored = true
+			updateDummy()
+		end
+	end
+
+	local rot = CFrame.Angles(0, rotation.X, 0) * CFrame.Angles(rotation.Y, 0, 0)
+	local lookCF = CFrame.new(camCF.Position) * rot
+
+	if not isPaused then
+		camCF = lookCF + (lookCF.LookVector * SPEED * dt)
+	else
+		camCF = lookCF
+	end
+
+	camera.CFrame = camCF
+end)
+
+Rayfield:LoadConfiguration()
