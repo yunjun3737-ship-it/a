@@ -1,3 +1,17 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+	Name = "Fling Things & People - 루프킬 허브",
+	LoadingTitle = "로딩 중...",
+	LoadingSubtitle = "by Gemini",
+	ConfigurationSaving = {
+		Enabled = false,
+		FolderName = nil,
+	}
+})
+
+local Tab = Window:CreateTab("루프킬 메뉴", "Crosshair")
+
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
@@ -8,117 +22,67 @@ local rootPart = character:WaitForChild("HumanoidRootPart")
 
 local enabled = false
 local targetPlayer = nil
+local loopKillConnection = nil
+local targetName = ""
 
--- ===== GUI 생성 =====
-local gui = Instance.new("ScreenGui")
-gui.Name = "FlingKillHub"
-gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
-
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 300, 0, 220)
-frame.Position = UDim2.new(0.5, -150, 0.4, -110)
-frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-frame.BorderSizePixel = 0
-frame.Parent = gui
-
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
-corner.Parent = frame
-
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 35)
-title.BackgroundTransparency = 1
-title.Text = "Fling Things & People 루프킬 허브"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 14
-title.Font = Enum.Font.GothamBold
-title.Parent = frame
-
--- 닉네임 입력창
-local textBox = Instance.new("TextBox")
-textBox.Size = UDim2.new(0.8, 0, 0, 40)
-textBox.Position = UDim2.new(0.1, 0, 0, 50)
-textBox.PlaceholderText = "타겟 플레이어 닉네임 입력"
-textBox.Text = ""
-textBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-textBox.TextSize = 14
-textBox.Font = Enum.Font.Gotham
-textBox.Parent = frame
-
-local tbCorner = Instance.new("UICorner")
-tbCorner.CornerRadius = UDim.new(0, 6)
-tbCorner.Parent = textBox
+-- 닉네임 입력란
+local Input = Tab:CreateInput({
+	Name = "타겟 플레이어 닉네임",
+	PlaceholderText = "닉네임 입력",
+	RemoveTextAfterFocusLost = false,
+	Callback = function(Value)
+		targetName = Value
+	end
+})
 
 -- 타겟 설정 버튼
-local setTargetBtn = Instance.new("TextButton")
-setTargetBtn.Size = UDim2.new(0.38, 0, 0, 35)
-setTargetBtn.Position = UDim2.new(0.1, 0, 0, 100)
-setTargetBtn.Text = "타겟 설정"
-setTargetBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-setTargetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-setTargetBtn.Font = Enum.Font.GothamBold
-setTargetBtn.Parent = frame
-
--- 타겟 지우기 버튼
-local clearTargetBtn = Instance.new("TextButton")
-clearTargetBtn.Size = UDim2.new(0.38, 0, 0, 35)
-clearTargetBtn.Position = UDim2.new(0.52, 0, 0, 100)
-clearTargetBtn.Text = "타겟 지우기"
-clearTargetBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-clearTargetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-clearTargetBtn.Font = Enum.Font.GothamBold
-clearTargetBtn.Parent = frame
-
--- 루프킬 토글 버튼
-local loopKillBtn = Instance.new("TextButton")
-loopKillBtn.Size = UDim2.new(0.8, 0, 0, 45)
-loopKillBtn.Position = UDim2.new(0.1, 0, 0, 155)
-loopKillBtn.Text = "루프킬: OFF"
-loopKillBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-loopKillBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-loopKillBtn.Font = Enum.Font.GothamBold
-loopKillBtn.Parent = frame
-
-local function getPlayer(name)
-	for _, p in ipairs(Players:GetPlayers()) do
-		if string.sub(string.lower(p.Name), 1, string.len(name)) == string.lower(name) then
-			return p
+local setTargetBtn = Tab:CreateButton({
+	Name = "타겟 설정",
+	Callback = function()
+		local foundPlayer = nil
+		for _, p in ipairs(Players:GetPlayers()) do
+			if string.match(string.lower(p.Name), string.lower(targetName)) then
+				foundPlayer = p
+				break
+			end
+		end
+		
+		if foundPlayer then
+			targetPlayer = foundPlayer
+			Rayfield:Notify({
+				Title = "타겟 설정 완료",
+				Content = "대상: " .. targetPlayer.Name,
+				Duration = 3,
+			})
+		else
+			Rayfield:Notify({
+				Title = "오류",
+				Content = "플레이어를 찾을 수 없습니다.",
+				Duration = 3,
+			})
 		end
 	end
-	return nil
-end
+})
 
--- 타겟 설정
-setTargetBtn.MouseButton1Click:Connect(function()
-	local foundPlayer = getPlayer(textBox.Text)
-	if foundPlayer then
-		targetPlayer = foundPlayer
-		textBox.Text = targetPlayer.Name
-		title.Text = "타겟 설정됨: " .. targetPlayer.Name
-		title.TextColor3 = Color3.fromRGB(0, 255, 100)
-	else
-		title.Text = "플레이어를 찾을 수 없습니다."
-		title.TextColor3 = Color3.fromRGB(255, 50, 50)
+-- 타겟 지우기 버튼
+local clearTargetBtn = Tab:CreateButton({
+	Name = "타겟 지우기",
+	Callback = function()
+		targetPlayer = nil
+		targetName = ""
+		Rayfield:Notify({
+			Title = "타겟 해제",
+			Content = "타겟이 지워졌습니다.",
+			Duration = 2,
+		})
 	end
-end)
+})
 
--- 타겟 지우기
-clearTargetBtn.MouseButton1Click:Connect(function()
-	targetPlayer = nil
-	textBox.Text = ""
-	title.Text = "Fling Things & People 루프킬 허브"
-	title.TextColor3 = Color3.fromRGB(255, 255, 255)
-end)
-
--- 블롭맨 소환 및 탑승 기능
+-- 블롭맨 소환 및 탑승 함수
 local function spawnAndRideBlobman()
-	-- 게임 내 블롭맨 소환 도구(Tool)나 상호작용 객체 소환을 시뮬레이션
 	local foundBlobman = Workspace:FindFirstChild("Blobman") or Workspace:FindFirstChild("Blob")
 	
 	if not foundBlobman then
-		-- 블롭맨이 없을 경우 생성
 		local dummy = Instance.new("Part")
 		dummy.Name = "Blobman"
 		dummy.Size = Vector3.new(3, 5, 3)
@@ -127,13 +91,11 @@ local function spawnAndRideBlobman()
 		foundBlobman = dummy
 	end
 	
-	-- 블롭맨에 탑승
 	if character and character:FindFirstChild("Humanoid") and foundBlobman then
 		local seat = foundBlobman:FindFirstChildOfClass("Seat")
 		if seat then
 			seat:Sit(character.Humanoid)
 		else
-			-- 시트가 없으면 캐릭터 위치를 블롭맨 위에 고정
 			character:SetPrimaryPartCFrame(foundBlobman.CFrame + Vector3.new(0, 3, 0))
 		end
 	end
@@ -142,32 +104,59 @@ local function spawnAndRideBlobman()
 end
 
 -- 루프킬 토글
-loopKillBtn.MouseButton1Click:Connect(function()
-	enabled = not enabled
-	if enabled then
-		loopKillBtn.Text = "루프킬: ON"
-		loopKillBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 50)
-	else
-		loopKillBtn.Text = "루프킬: OFF"
-		loopKillBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-	end
-end)
-
--- 루프킬 실행 로직
-RunService.Heartbeat:Connect(function()
-	if enabled and targetPlayer and targetPlayer.Character then
-		local targetHrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+local Toggle = Tab:CreateToggle({
+	Name = "루프킬 ON/OFF",
+	CurrentValue = false,
+	Flag = "LoopKillToggle",
+	Callback = function(Value)
+		-- 중복 실행 방지 조건문
+		if Value and enabled then
+			Rayfield:Notify({Title = "알림", Content = "루프킬이 이미 실행 중입니다.", Duration = 2})
+			return
+		end
 		
-		if targetHrp then
-			-- 블롭맨을 소환하고 타고 이동하는 함수 호출
-			local blob = spawnAndRideBlobman()
-			
-			-- 대상과 캐릭터(블롭맨 탑승 상태)의 위치를 강제로 겹침 (루프 킬)
-			if blob then
-				blob.CFrame = targetHrp.CFrame
-			else
-				rootPart.CFrame = targetHrp.CFrame
+		enabled = Value
+		
+		if enabled then
+			if not targetPlayer then
+				Rayfield:Notify({
+					Title = "경고",
+					Content = "설정된 타겟이 없습니다.",
+					Duration = 3,
+				})
+				-- 실행 안 됨 상태로 토글 값 복원
+				return
 			end
+			
+			loopKillConnection = RunService.Heartbeat:Connect(function()
+				if targetPlayer and targetPlayer.Character then
+					local targetHrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+					local targetHumanoid = targetPlayer.Character:FindFirstChild("Humanoid")
+					
+					if targetHrp then
+						-- 체력 0으로 즉사시키기
+						if targetHumanoid then
+							targetHumanoid.Health = 0
+						end
+						
+						local blob = spawnAndRideBlobman()
+						if blob then
+							blob.CFrame = targetHrp.CFrame
+						else
+							rootPart.CFrame = targetHrp.CFrame
+						end
+					end
+				end
+			end)
+			
+			Rayfield:Notify({Title = "알림", Content = "루프킬이 시작되었습니다.", Duration = 2})
+		else
+			if loopKillConnection then
+				loopKillConnection:Disconnect()
+			end
+			Rayfield:Notify({Title = "알림", Content = "루프킬이 중지되었습니다.", Duration = 2})
 		end
 	end
-end)
+})
+
+Rayfield:LoadConfiguration()
